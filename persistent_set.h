@@ -16,23 +16,24 @@ struct persistent_set
 
 protected:
     struct node {
-        const node *left, *right;
+        node *left, *right;
         value_type value;
+        int counter, change;
 
         node();
         node(value_type v);
-        node(value_type v, const node *l, const node * r);
+        node(value_type v, node *l, node * r);
         ~node();
-        node & operator=(const node *other);
-        bool find(std::vector<const node *> & path, value_type key) const;
-        const node * add(value_type key) const;
-        const node * del(std::vector<const node *> & path, iterator it) const ;
-        const node * down()const;
+        bool find(std::vector<const node *> & path, value_type key);
+        node * add(value_type key);
+        node * del(std::vector<const node *> & path, iterator it);
+        node * down();
         void begin(std::vector<const node *> & path) const;
         void end(std::vector<const node *> & path) const;
+        void push_change();
     };
 
-    const node * roots;
+    node * roots;
 
 public:
 
