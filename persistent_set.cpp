@@ -15,19 +15,31 @@ persistent_set::node::node(value_type v) : value(v), counter(1), change(0) {
     right = NULL;
 }
 
-persistent_set::node::node(value_type v, node *l, node *r) : value(v), left(l), right(r), counter(1), change(0) {
+persistent_set::node::node(value_type v, node *l, node *r) : value(v), counter(1), change(0) {
+    left = l;
+    right = r;
+    if (l != NULL)
+        l->change++;
+    if (r != NULL)
+        r->change++;
 }
 
 persistent_set::node::~node() {
-    change--;
-    push_change();
-    if (left != NULL && left->change + left->counter == 0)
-        delete left;
-    if (right != NULL && right->counter + right->change == 0)
-        delete right;
+    if (left != NULL)
+        left->delete_();
+    if (right != NULL)
+        right->delete_();
 }
 
-bool persistent_set::node::find(std::vector<const node *> & path, value_type key) {
+void persistent_set::node::delete_() {
+    change--;
+    if (change)
+        push_change();
+    if (!counter)
+        this->delete_();
+}
+
+bool persistent_set::node::find(std::vector<node *> & path, value_type key) {
     if (change)
         push_change();
     path.push_back(this);
@@ -50,63 +62,57 @@ persistent_set::node * persistent_set::node::add(value_type key) {
         if (left == NULL) {
             node *l = new node(key);
             node *p = new node(value, l, right);
-            if (right != NULL)
-                right->change++;
+            this->delete_();
             return p;
         } else {
             node *l = left->add(key);
             node *p = new node(value, l, right);
-            if (right != NULL)
-                right->change++;
+            this->delete_();
             return p;
         }
     } else {
         if (right == NULL) {
             node *r = new node(key);
             node *p = new node(value, left, r);
-            if (left != NULL)
-                left->change++;
+            this->delete_();
             return p;
         } else {
             node *r = right->add(key);
             node *p = new node(value, left, r);
-            if (left != NULL)
-                left->change++;
+            this->delete_();
             return p;
         }
     }
 }
 
-persistent_set::node * persistent_set::node::del(std::vector <const node *> & path, iterator it) {
+persistent_set::node * persistent_set::node::del(std::vector <node *> & path, iterator it) {
     if (change)
         push_change();
     path.push_back(this);
     value_type m = *it;
     if (value == m) {
         if (iterator(path, false) == it) {
-            return this->down();
+            node *p = this->down();
+            this->delete_();
+            return p;
         } else {
-            return new node();
+            return NULL;
         }
     } else if (value > m) {
         if (left != NULL) {
             node *l = left->del(path, it);
             node *p = new node(value, l, right);
-            if (right != NULL)
-                right->change++;
             return p;
         } else {
-            return new node();
+            return NULL;
         }
     } else {
         if (right != NULL) {
             node *r = right->del(path, it);
             node *p = new node(value, left, r);
-            if (left != NULL)
-                left->change++;
             return p;
         } else {
-            return new node();
+            return NULL;
         }
     }
 }
@@ -115,36 +121,33 @@ persistent_set::node * persistent_set::node::down() {
     if (change)
         push_change();
     if (left == NULL && right == NULL) {
-        if (!counter)
-            delete this;
+        this->delete_();
         return NULL;
     } else if (left == NULL) {
         node *p = right;
-        delete this;
+        this->delete_();
         return p;
     } else if (right == NULL) {
         node *p = left;
-        delete this;
+        this->delete_();
         return p;
     } else {
         value_type t = left->value;
         node *l = left->down();
         node *p = new node(t, l, right);
-        if (right != NULL)
-            right->change++;
-        delete this;
+        this->delete_();
         return p;
     }
 }
 
-void persistent_set::node::begin(std::vector<const node *> &path) const {
+void persistent_set::node::begin(std::vector<node *> &path) {
     path.push_back(this);
     if (left == NULL)
         return;
     left->begin(path);
 }
 
-void persistent_set::node::end(std::vector<const node *> &path) const {
+void persistent_set::node::end(std::vector<node *> &path) {
     path.push_back(this);
     if (right != NULL)
         right->end(path);
@@ -171,11 +174,11 @@ persistent_set& persistent_set::operator=(persistent_set const &other) {
 }
 
 persistent_set::~persistent_set() {
-    delete roots;
+    roots->delete_();
 }
 
 persistent_set::iterator persistent_set::find(value_type key) {
-    std::vector <const node *> path;
+    std::vector <node *> path;
     if (roots != NULL) {
         bool f = roots->find(path, key);
         if (!f)
@@ -197,18 +200,18 @@ std::pair<persistent_set::iterator, bool> persistent_set::insert(value_type key)
 }
 
 void persistent_set::erase(iterator it) {
-    std::vector<const node *> path;
+    std::vector<node *> path;
     roots = roots->del(path, it);
 }
 
 persistent_set::iterator persistent_set::begin() const {
-    std::vector <const node *> path;
+    std::vector <node *> path;
     roots->begin(path);
     return iterator(path, false);
 }
 
 persistent_set::iterator persistent_set::end() const {
-    std::vector <const node *> path;
+    std::vector <node *> path;
     roots->end(path);
     return iterator(path, true);
 }
@@ -219,7 +222,7 @@ persistent_set::iterator::iterator() : path(), flag_end(false) {
 persistent_set::iterator::iterator(iterator const &other) : path(other.path), flag_end(other.flag_end) {
 }
 
-persistent_set::iterator::iterator(std::vector<const node *> p, bool f) : path(p), flag_end(f) {
+persistent_set::iterator::iterator(std::vector<node *> p, bool f) : path(p), flag_end(f) {
 }
 
 persistent_set::iterator& persistent_set::iterator::operator=(const iterator *other) {
@@ -235,7 +238,7 @@ persistent_set::value_type const& persistent_set::iterator::operator*() const {
 }
 
 persistent_set::iterator& persistent_set::iterator::operator++() {
-    std::vector <const node *> p = path;
+    std::vector <node *> p = path;
     if (flag_end)
         return *this;
     if (path[path.size() - 1]->right == NULL) {
@@ -256,7 +259,7 @@ persistent_set::iterator& persistent_set::iterator::operator++() {
 }
 
 persistent_set::iterator persistent_set::iterator::operator++(int) {
-    std::vector <const node *> p = path;
+    std::vector <node *> p = path;
     if (flag_end)
         return *this;
     if (path[path.size() - 1]->right == NULL) {
