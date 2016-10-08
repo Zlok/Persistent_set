@@ -8,6 +8,8 @@
 #include <cstdio>
 #include <utility>
 #include <vector>
+#include <iostream>
+#include <memory>
 
 struct persistent_set
 {
@@ -16,25 +18,22 @@ struct persistent_set
 
 protected:
     struct node {
-        node *left, *right;
-        value_type value;
-        int counter, change;
+        std::shared_ptr<const node> left, right;
+        const value_type value;
 
         node();
         node(value_type v);
-        node(value_type v, node *l, node * r);
+        node(value_type v, std::shared_ptr<const node> l, std::shared_ptr<const node> r);
         ~node();
-        bool find(std::vector<node *> & path, value_type key);
-        node * add(value_type key);
-        node * del(std::vector<node *> & path, iterator it);
-        node * down();
-        void begin(std::vector<node *> & path);
-        void end(std::vector<node *> & path);
-        void push_change();
-        void delete_();
+        bool find(std::vector<const node *> & path, value_type key) const;
+        std::shared_ptr<const node> add(value_type key) const;
+        std::shared_ptr<const node> del(std::vector<const node *> & path, iterator it) const;
+        std::shared_ptr<const node> down() const;
+        void begin(std::vector<const node *> & path) const;
+        void end(std::vector<const node *> & path) const;
     };
 
-    node * roots;
+    std::shared_ptr<const node> roots;
 
 public:
 
@@ -51,11 +50,11 @@ public:
 
 struct persistent_set::iterator
 {
-    std::vector <node *> path;
+    std::vector <const node *> path;
     bool flag_end;
     iterator();
     iterator(iterator const& other);
-    iterator(std::vector <node *> p, bool f);
+    iterator(std::vector <const node *> p, bool f);
     iterator& operator=(const iterator *other);
     value_type const& operator*() const;
 
